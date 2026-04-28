@@ -63,6 +63,15 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontFamily: {
+        display: ['"Playfair Display"', 'Georgia', 'serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      backgroundImage: {
+        'gradient-ember': 'var(--gradient-ember)',
+        'gradient-fire': 'var(--gradient-fire)',
+        'gradient-warm': 'var(--gradient-warm)',
+      },
       keyframes: {
         "accordion-down": {
           from: {
