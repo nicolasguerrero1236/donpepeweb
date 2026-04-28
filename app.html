@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Don Pepe — Pollo a la Leña en Córdoba | Pedí Online</title>
+  <meta name="description" content="Pedí online en Don Pepe: pollo a la leña, milanesas, fajitas y pizzas en Córdoba. Retiro en local o delivery. Cacheuta 3750." />
+  <meta property="og:title" content="Don Pepe — Pollo a la Leña en Córdoba" />
+  <meta property="og:description" content="Pedí online: pollo a la leña, milanesas, fajitas y más. Retiro o delivery." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+  <header id="header">
+    <div class="container header-inner">
+      <a href="#inicio" class="logo-link">
+        <div class="logo-icon">🔥</div>
+        <div class="logo-text">
+          <p>Don Pepe</p>
+          <p>Pollo a la leña</p>
+        </div>
+      </a>
+      <nav class="header-nav">
+        <a href="#menu">Menú</a>
+        <a href="#info">Horarios</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+      <button class="btn-cart" id="btn-open-cart" aria-label="Abrir carrito">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <span class="btn-label">Mi pedido</span>
+        <span class="cart-badge" id="cart-badge">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════ HERO ═══════════════════════════ -->
+  <section id="inicio">
+    <div class="hero-bg">
+      <img src="src/assets/hero-pollo.jpg" alt="Pollo a la leña dorado de Don Pepe" />
+      <div class="hero-overlay"></div>
+    </div>
+    <div class="hero-content container">
+      <div class="hero-inner">
+        <span class="hero-badge">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:0.875rem;height:0.875rem"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          4.5 · 698 opiniones
+        </span>
+        <h1 class="hero-title">El sabor de la <em>brasa</em> en tu mesa.</h1>
+        <p class="hero-desc">Pollo a la leña, milanesas y fajitas auténticas de Córdoba. Pedí online y retiralo o te lo llevamos.</p>
+        <div class="hero-btns">
+          <a href="#menu" class="btn-ember">Pedir ahora</a>
+          <a href="#info" class="btn-outline-cream">Ver horarios</a>
+        </div>
+        <div class="hero-meta">
+          <span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Cacheuta 3750, Córdoba
+          </span>
+          <span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Hoy: 11–15h · 19–24h
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ MENU ═══════════════════════════ -->
+  <section id="menu">
+    <div class="container">
+      <div class="menu-header">
+        <p class="section-label">Nuestra carta</p>
+        <h2 class="section-title">Hecho con fuego, servido con cariño</h2>
+        <p class="section-subtitle">Recetas tradicionales de Don Pepe, listas para tu mesa.</p>
+      </div>
+      <div class="tabs-wrapper" id="category-tabs"></div>
+      <div class="menu-grid" id="menu-grid"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ INFO ═══════════════════════════ -->
+  <section id="info">
+    <div class="container">
+      <div class="info-grid">
+        <div>
+          <div class="info-icon">🕐</div>
+          <h3 class="info-title">Horarios</h3>
+          <ul class="schedule-list">
+            <li><span>Martes</span><span>11–15h · 19–24h</span></li>
+            <li><span>Miércoles</span><span>11–15h · 19–24h</span></li>
+            <li><span>Jueves</span><span>11–15h · 19–24h</span></li>
+            <li><span>Viernes</span><span>11–15h · 19–24h</span></li>
+            <li><span>Sábado</span><span>11–15h · 19–24h</span></li>
+            <li><span>Domingo</span><span>11–15h</span></li>
+            <li><span>Lunes</span><span>Cerrado</span></li>
+          </ul>
+        </div>
+        <div>
+          <div class="info-icon">📍</div>
+          <h3 class="info-title">Dónde estamos</h3>
+          <p class="info-address">Cacheuta 3750<br>X5000 Córdoba, Argentina</p>
+          <a href="https://maps.google.com/?q=Cacheuta+3750+Córdoba" target="_blank" rel="noopener" class="link-mustard">
+            Ver en Google Maps →
+          </a>
+        </div>
+        <div id="contacto">
+          <div class="info-icon">📞</div>
+          <h3 class="info-title">Contacto</h3>
+          <a href="tel:+543514623212" class="info-phone">0351 462-3212</a>
+          <div class="info-rating">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            4.5 · 698 opiniones en Google
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    © <span id="footer-year"></span> Don Pepe · Pollo a la leña · Hecho con 🔥 en Córdoba
+  </footer>
+
+  <!-- ═══════════════════════════ CART DRAWER ═══════════════════════════ -->
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-label="Tu pedido">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        Tu pedido
+        <span class="count-label" id="drawer-count"></span>
+      </div>
+      <button class="btn-close" id="btn-close-cart" aria-label="Cerrar">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="drawer-body" id="drawer-body">
+      <!-- renderizado por app.js -->
+    </div>
+
+    <div class="drawer-footer" id="drawer-footer" style="display:none">
+      <div class="totals">
+        <div class="total-row" id="row-subtotal"><span>Subtotal</span><span id="val-subtotal"></span></div>
+        <div class="total-row muted" id="row-delivery" style="display:none"><span>Envío</span><span id="val-delivery"></span></div>
+        <hr class="total-divider" />
+        <div class="total-final"><span>Total</span><span id="val-total"></span></div>
+      </div>
+      <button class="btn-whatsapp" id="btn-send">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Enviar pedido por WhatsApp
+      </button>
+      <button class="btn-clear" id="btn-clear">Vaciar carrito</button>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════ TOASTS ═══════════════════════════ -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
