@@ -47,8 +47,26 @@ const menu = [
   { id: 'b3',  name: 'Cerveza Quilmes 1L',               description: 'Helada al toque.',                                                price: 2500,  category: 'bebidas' },
 ];
 
-const WHATSAPP    = '5493512208096';
-const DELIVERY_FEE = 1500;
+const WHATSAPP = '5493512208096';
+
+const STORE = {
+  address: 'Cacheuta 3750, Cordoba, Argentina',
+  lat: -31.450806,
+  lng: -64.212966,
+};
+
+const DELIVERY_RULES = {
+  upTo3km: 1500,
+  upTo6km: 2500,
+};
+
+const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
+
+let deliveryMap = null;
+let deliveryStoreMarker = null;
+let deliveryClientMarker = null;
+let addressInputDebounce = null;
 
 /** Formatea un número como moneda ARS */
 const fmt = n =>
@@ -75,9 +93,17 @@ const cart = {
   address: '',
   notes:   '',
 
+  deliveryDistanceKm: null,
+  deliveryFee: 0,
+  deliveryStatus: 'idle', // 'idle' | 'pending' | 'ok' | 'out' | 'error'
+  deliveryMessage: '',
+  deliveryCoords: null,   // { lat, lng }
+
   get count()    { return this.lines.reduce((s, l) => s + l.qty, 0); },
   get subtotal() { return this.lines.reduce((s, l) => s + l.price * l.qty, 0); },
-  get total()    { return this.subtotal + (this.mode === 'delivery' ? DELIVERY_FEE : 0); },
+  get total()    {
+    return this.subtotal + (this.mode === 'delivery' && this.deliveryStatus === 'ok' ? this.deliveryFee : 0);
+  },
 
   add(item) {
     const found = this.lines.find(l => l.id === item.id);
@@ -148,6 +174,275 @@ function toast(msg, type = 'default') {
   }, 3200);
 }
 
+function degToRad(deg) {
+  return deg * (Math.PI / 180);
+}
+
+// Distancia geodésica entre dos coordenadas usando fórmula de Haversine.
+function haversineKm(a, b) {
+  const R = 6371;
+  const dLat = degToRad(b.lat - a.lat);
+  const dLng = degToRad(b.lng - a.lng);
+  const lat1 = degToRad(a.lat);
+  const lat2 = degToRad(b.lat);
+
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function resolveDeliveryByDistance(distanceKm) {
+  if (distanceKm <= 3) {
+    return { status: 'ok', fee: DELIVERY_RULES.upTo3km, message: 'Hasta 3 km' };
+  }
+  if (distanceKm <= 6) {
+    return { status: 'ok', fee: DELIVERY_RULES.upTo6km, message: 'Entre 3 y 6 km' };
+  }
+  return { status: 'out', fee: 0, message: 'Zona fuera de reparto' };
+}
+
+function buildGoogleMapsLink(lat, lng) {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+async function geocodeAddress(address) {
+  const params = new URLSearchParams({
+    q: address,
+    format: 'jsonv2',
+    limit: '1',
+    countrycodes: 'ar',
+    addressdetails: '1',
+  });
+
+  const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
+    headers: { 'Accept-Language': 'es-AR,es;q=0.9' },
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudo consultar Nominatim');
+  }
+
+  const results = await response.json();
+  if (!Array.isArray(results) || results.length === 0) {
+    return null;
+  }
+
+  const first = results[0];
+  return {
+    lat: Number(first.lat),
+    lng: Number(first.lon),
+    label: first.display_name || address,
+  };
+}
+
+async function reverseGeocode(lat, lng) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lng),
+    format: 'jsonv2',
+    zoom: '18',
+    addressdetails: '1',
+  });
+
+  const response = await fetch(`${NOMINATIM_REVERSE_URL}?${params.toString()}`, {
+    headers: { 'Accept-Language': 'es-AR,es;q=0.9' },
+  });
+
+  if (!response.ok) {
+    throw new Error('No se pudo obtener la direccion');
+  }
+
+  const result = await response.json();
+  return result && result.display_name ? result.display_name : '';
+}
+
+function resetDeliveryState() {
+  cart.deliveryDistanceKm = null;
+  cart.deliveryFee = 0;
+  cart.deliveryStatus = 'idle';
+  cart.deliveryMessage = '';
+  cart.deliveryCoords = null;
+}
+
+function applyDeliveryFromCoords(coords, resolvedAddress) {
+  const distanceKm = haversineKm({ lat: STORE.lat, lng: STORE.lng }, coords);
+  const delivery = resolveDeliveryByDistance(distanceKm);
+
+  cart.deliveryDistanceKm = distanceKm;
+  cart.deliveryFee = delivery.fee;
+  cart.deliveryStatus = delivery.status;
+  cart.deliveryMessage = delivery.message;
+  cart.deliveryCoords = coords;
+  cart.address = resolvedAddress || cart.address;
+
+  const addressInput = document.getElementById('f-address');
+  if (addressInput && resolvedAddress) {
+    addressInput.value = resolvedAddress;
+  }
+
+  update();
+}
+
+function moveClientMarker(coords) {
+  if (!deliveryMap) return;
+
+  if (!deliveryClientMarker) {
+    deliveryClientMarker = L.marker([coords.lat, coords.lng]).addTo(deliveryMap);
+  } else {
+    deliveryClientMarker.setLatLng([coords.lat, coords.lng]);
+  }
+
+  const bounds = L.latLngBounds([
+    [STORE.lat, STORE.lng],
+    [coords.lat, coords.lng],
+  ]);
+  deliveryMap.fitBounds(bounds.pad(0.1));
+}
+
+function destroyDeliveryMap() {
+  if (!deliveryMap) return;
+  deliveryMap.remove();
+  deliveryMap = null;
+  deliveryStoreMarker = null;
+  deliveryClientMarker = null;
+}
+
+function initDeliveryMap() {
+  if (cart.mode !== 'delivery') return;
+  const mapContainer = document.getElementById('delivery-map');
+  if (!mapContainer || typeof L === 'undefined') return;
+
+  destroyDeliveryMap();
+
+  deliveryMap = L.map(mapContainer, {
+    center: [STORE.lat, STORE.lng],
+    zoom: 15,
+    zoomControl: true,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(deliveryMap);
+
+  deliveryStoreMarker = L.marker([STORE.lat, STORE.lng]).addTo(deliveryMap)
+    .bindPopup('Don Pepe - Local')
+    .openPopup();
+
+  deliveryMap.on('click', async e => {
+    if (cart.mode !== 'delivery') return;
+
+    cart.deliveryStatus = 'pending';
+    cart.deliveryMessage = 'Calculando envio...';
+    update();
+
+    const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
+    moveClientMarker(coords);
+
+    try {
+      const resolvedAddress = await reverseGeocode(coords.lat, coords.lng);
+      applyDeliveryFromCoords(coords, resolvedAddress || cart.address);
+    } catch (_) {
+      cart.deliveryStatus = 'error';
+      cart.deliveryMessage = 'No se pudo obtener direccion para ese punto';
+      cart.deliveryCoords = coords;
+      update();
+      toast('No se pudo leer la direccion del punto seleccionado', 'error');
+    }
+  });
+
+  if (cart.deliveryCoords) {
+    moveClientMarker(cart.deliveryCoords);
+  } else {
+    deliveryMap.setView([STORE.lat, STORE.lng], 15);
+  }
+
+  setTimeout(() => {
+    if (deliveryMap) deliveryMap.invalidateSize();
+  }, 30);
+}
+
+function bindDeliveryAddressInput() {
+  if (cart.mode !== 'delivery') return;
+  const input = document.getElementById('f-address');
+  if (!input) return;
+
+  const runGeocode = async () => {
+    const address = input.value.trim();
+    cart.address = address;
+
+    if (!address) {
+      resetDeliveryState();
+      update();
+      return;
+    }
+
+    cart.deliveryStatus = 'pending';
+    cart.deliveryMessage = 'Calculando envio...';
+    update();
+
+    try {
+      const point = await geocodeAddress(address);
+      if (!point) {
+        cart.deliveryStatus = 'error';
+        cart.deliveryMessage = 'No encontramos esa direccion';
+        cart.deliveryDistanceKm = null;
+        cart.deliveryFee = 0;
+        cart.deliveryCoords = null;
+        update();
+        return;
+      }
+
+      const coords = { lat: point.lat, lng: point.lng };
+      moveClientMarker(coords);
+      applyDeliveryFromCoords(coords, point.label);
+    } catch (_) {
+      cart.deliveryStatus = 'error';
+      cart.deliveryMessage = 'Error consultando Nominatim';
+      cart.deliveryDistanceKm = null;
+      cart.deliveryFee = 0;
+      cart.deliveryCoords = null;
+      update();
+      toast('Error al consultar direcciones, intenta nuevamente', 'error');
+    }
+  };
+
+  input.addEventListener('input', () => {
+    clearTimeout(addressInputDebounce);
+    addressInputDebounce = setTimeout(runGeocode, 1500);
+  });
+
+  input.addEventListener('blur', () => {
+    clearTimeout(addressInputDebounce);
+    runGeocode();
+  });
+}
+
+function getDeliverySummaryText() {
+  if (cart.mode !== 'delivery') return '';
+
+  if (cart.deliveryStatus === 'pending') {
+    return 'Calculando envio segun distancia...';
+  }
+
+  if (cart.deliveryStatus === 'error') {
+    return cart.deliveryMessage || 'No se pudo calcular el delivery';
+  }
+
+  if (cart.deliveryStatus === 'out') {
+    const kmText = cart.deliveryDistanceKm != null ? `${cart.deliveryDistanceKm.toFixed(2)} km` : '';
+    return kmText ? `${kmText} - Zona fuera de reparto` : 'Zona fuera de reparto';
+  }
+
+  if (cart.deliveryStatus === 'ok') {
+    return `${cart.deliveryDistanceKm.toFixed(2)} km - Envio ${fmt(cart.deliveryFee)}`;
+  }
+
+  return 'Escribe tu direccion o marca un punto en el mapa';
+}
+
 
 /* ════════════════════════════════════
    ENVIAR PEDIDO POR WHATSAPP
@@ -158,9 +453,24 @@ document.getElementById('btn-send').addEventListener('click', () => {
   const address = document.getElementById('f-address').value.trim();
   const notes   = document.getElementById('f-notes').value.trim();
 
-  if (!name || !phone)                        { toast('Ingresá tu nombre y teléfono', 'error'); return; }
-  if (cart.mode === 'delivery' && !address)   { toast('Ingresá la dirección de entrega', 'error'); return; }
+  if (!name || !phone)                       { toast('Ingresá tu nombre y teléfono', 'error'); return; }
+  if (cart.mode === 'delivery' && !address)  { toast('Ingresá la dirección de entrega', 'error'); return; }
   if (cart.lines.length === 0)               { toast('Tu carrito está vacío', 'error'); return; }
+
+  if (cart.mode === 'delivery') {
+    if (!cart.deliveryCoords) {
+      toast('Marcá una ubicacion en el mapa o espera el calculo por direccion', 'error');
+      return;
+    }
+    if (cart.deliveryStatus === 'out') {
+      toast('La direccion esta fuera de la zona de reparto', 'error');
+      return;
+    }
+    if (cart.deliveryStatus !== 'ok') {
+      toast('Aun no pudimos calcular el delivery', 'error');
+      return;
+    }
+  }
 
   cart.name    = name;
   cart.phone   = phone;
@@ -171,17 +481,21 @@ document.getElementById('btn-send').addEventListener('click', () => {
     .map(l => `• ${l.qty}x ${l.name} — ${fmt(l.qty * l.price)}`)
     .join('\n');
 
+  const mapsLink = cart.deliveryCoords
+    ? buildGoogleMapsLink(cart.deliveryCoords.lat, cart.deliveryCoords.lng)
+    : '';
+
   const msg =
 `*🍗 Nuevo pedido — Don Pepe*
 
 👤 *Cliente:* ${name}
 📞 *Tel:* ${phone}
-📦 *Modalidad:* ${cart.mode === 'retiro' ? 'Retiro en local' : 'Delivery'}${cart.mode === 'delivery' ? `\n📍 *Dirección:* ${address}` : ''}
+📦 *Modalidad:* ${cart.mode === 'retiro' ? 'Retiro en local' : 'Delivery'}${cart.mode === 'delivery' ? `\n📍 *Dirección:* ${address}` : ''}${cart.mode === 'delivery' && cart.deliveryDistanceKm != null ? `\n📏 *Distancia:* ${cart.deliveryDistanceKm.toFixed(2)} km` : ''}${cart.mode === 'delivery' ? `\n🛵 *Delivery:* ${cart.deliveryStatus === 'ok' ? fmt(cart.deliveryFee) : 'Zona fuera de reparto'}` : ''}${cart.mode === 'delivery' && mapsLink ? `\n🗺️ *Ubicación:* ${mapsLink}` : ''}
 
 *Pedido:*
 ${itemsTxt}
 
-Subtotal: ${fmt(cart.subtotal)}${cart.mode === 'delivery' ? `\nEnvío: ${fmt(DELIVERY_FEE)}` : ''}
+Subtotal: ${fmt(cart.subtotal)}${cart.mode === 'delivery' ? `\nEnvío: ${cart.deliveryStatus === 'ok' ? fmt(cart.deliveryFee) : 'Zona fuera de reparto'}` : ''}
 *Total: ${fmt(cart.total)}*
 ${notes ? `\n📝 *Notas:* ${notes}` : ''}`;
 
@@ -227,6 +541,7 @@ function renderCartBody() {
 
   // Estado vacío
   if (cart.lines.length === 0) {
+    destroyDeliveryMap();
     body.innerHTML = `
       <div class="cart-empty">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -240,6 +555,8 @@ function renderCartBody() {
     footer.style.display = 'none';
     return;
   }
+
+  destroyDeliveryMap();
 
   // Items + formulario
   body.innerHTML = `
@@ -285,7 +602,7 @@ function renderCartBody() {
           </div>
           <div class="mode-option ${cart.mode === 'delivery' ? 'active' : ''}" data-mode="delivery">
             <div class="mode-title">Delivery</div>
-            <div class="mode-sub">+ ${fmt(DELIVERY_FEE)}</div>
+            <div class="mode-sub">Según distancia</div>
           </div>
         </div>
       </div>
@@ -300,6 +617,11 @@ function renderCartBody() {
       <div id="field-address" class="${cart.mode === 'delivery' ? '' : 'field-hidden'}">
         <label class="form-label" for="f-address">Dirección</label>
         <input id="f-address" type="text" maxlength="120" placeholder="Calle, altura, depto" value="${escHtml(cart.address)}" />
+        <p class="delivery-status ${cart.deliveryStatus === 'out' || cart.deliveryStatus === 'error' ? 'warn' : ''}">${escHtml(getDeliverySummaryText())}</p>
+        <div class="delivery-map-wrap">
+          <div id="delivery-map" aria-label="Mapa para seleccionar direccion"></div>
+        </div>
+        <p class="delivery-map-help">También podés hacer click en el mapa para elegir la ubicación exacta.</p>
       </div>
       <div>
         <label class="form-label" for="f-notes">Notas (opcional)</label>
@@ -312,6 +634,9 @@ function renderCartBody() {
     opt.addEventListener('click', () => {
       persistFields();
       cart.mode = opt.dataset.mode;
+      if (cart.mode !== 'delivery') {
+        resetDeliveryState();
+      }
       update();
     });
   });
@@ -342,12 +667,29 @@ function renderCartBody() {
   const rowDelivery = document.getElementById('row-delivery');
   if (cart.mode === 'delivery') {
     rowDelivery.style.display = '';
-    document.getElementById('val-delivery').textContent = fmt(DELIVERY_FEE);
+    const deliveryValue = document.getElementById('val-delivery');
+    if (cart.deliveryStatus === 'ok') {
+      deliveryValue.textContent = fmt(cart.deliveryFee);
+    } else if (cart.deliveryStatus === 'out') {
+      deliveryValue.textContent = 'Zona fuera de reparto';
+    } else if (cart.deliveryStatus === 'pending') {
+      deliveryValue.textContent = 'Calculando...';
+    } else {
+      deliveryValue.textContent = 'Completa direccion';
+    }
   } else {
     rowDelivery.style.display = 'none';
   }
 
   document.getElementById('val-total').textContent = fmt(cart.total);
+
+  if (cart.mode === 'delivery') {
+    bindDeliveryAddressInput();
+    initDeliveryMap();
+    if (cart.deliveryCoords) {
+      moveClientMarker(cart.deliveryCoords);
+    }
+  }
 }
 
 function update() {
